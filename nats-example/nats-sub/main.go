@@ -28,7 +28,7 @@ func main() {
 	fmt.Println("subscriber main starts ....")
 	nc, err := nats.Connect("nats://127.0.0.1:4222", nats.ReconnectWait(10*time.Second), nats.MaxReconnects(100))
 	if err != nil {
-		fmt.Println(err)
+		fmt.Print(err)
 	}
 	sc, err := stan.Connect(clusterID, clientID, stan.NatsConn(nc))
 	if err != nil {
@@ -43,7 +43,9 @@ func main() {
 	fmt.Println(" START Push......")
 	for i := 1; i <= 20; i++ {
 		msg := fmt.Sprintf("%d noted at: %s", i, time.Now().String())
-		err = sc.Publish(topic, []byte(msg))
+		_, err = sc.PublishAsync(topic, []byte(msg), func(s string, e error) {
+			//fmt.Print(e)
+		})
 		if err != nil {
 			fmt.Println("err in publishing msg", "err", err)
 		}
@@ -59,8 +61,13 @@ func main() {
 		fmt.Println(err)
 	}
 
+	time.Sleep(time.Duration(5) * time.Second)
+	// Unsubscribe
+	_ = sub1.Unsubscribe()
+
+
 	// Wait for 5 second than REOPEN again
-	//time.Sleep(time.Duration(5) * time.Second)
+	time.Sleep(time.Duration(5) * time.Second)
 	sub2, err := sc.QueueSubscribe(topic, "foo", func(m *stan.Msg) {
 		fmt.Printf("Received a message on sub 2: %s\n", string(m.Data))
 		time.Sleep(time.Duration(1) * time.Second)
@@ -68,15 +75,10 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	time.Sleep(time.Duration(5) * time.Second)
-	// Unsubscribe
-	_ = sub1.Unsubscribe()
-
-
 	time.Sleep(time.Duration(5) * time.Second)
 	// Unsubscribe
 	_ = sub2.Unsubscribe()
+
 
 	// Close connection
 	_ = sc.Close()
