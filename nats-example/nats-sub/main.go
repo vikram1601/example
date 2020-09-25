@@ -35,15 +35,15 @@ func main() {
 		fmt.Println(err)
 	}
 	// Simple Synchronous Publisher
-	err = sc.Publish("foo", []byte("Hello Viki ..")) // does not return until an ack has been received from NATS Streaming
+	/*err = sc.Publish("foo", []byte("Hello Viki ..")) // does not return until an ack has been received from NATS Streaming
 	if err != nil {
 		fmt.Println(err)
-	}
+	}*/
 
 	fmt.Println(" START Push......")
 	for i := 1; i <= 20; i++ {
 		msg := fmt.Sprintf("%d noted at: %s", i, time.Now().String())
-		err := sc.Publish(topic, []byte(msg))
+		err = sc.Publish(topic, []byte(msg))
 		if err != nil {
 			fmt.Println("err in publishing msg", "err", err)
 		}
@@ -51,30 +51,32 @@ func main() {
 	}
 
 	// Simple Async Subscriber
-	sub, err := sc.QueueSubscribe(topic, "foo", func(m *stan.Msg) {
-		fmt.Printf("Received a message: %s\n", string(m.Data))
+	sub1, err := sc.QueueSubscribe(topic, "foo", func(m *stan.Msg) {
+		fmt.Printf("Received a message on sub 1: %s\n", string(m.Data))
 		time.Sleep(time.Duration(1) * time.Second)
 	}, stan.DurableName("foo"), stan.AckWait(time.Duration(300)*time.Second), stan.StartWithLastReceived(), stan.SetManualAckMode())
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	time.Sleep(time.Duration(5) * time.Second)
-	// Unsubscribe
-	_ = sub.Unsubscribe()
 
 	// Wait for 5 second than REOPEN again
-	time.Sleep(time.Duration(5) * time.Second)
-	sub, err = sc.QueueSubscribe(topic, "foo", func(m *stan.Msg) {
-		fmt.Printf("Received a message: %s\n", string(m.Data))
+	//time.Sleep(time.Duration(5) * time.Second)
+	sub2, err := sc.QueueSubscribe(topic, "foo", func(m *stan.Msg) {
+		fmt.Printf("Received a message on sub 2: %s\n", string(m.Data))
 		time.Sleep(time.Duration(1) * time.Second)
 	}, stan.DurableName("foo"), stan.AckWait(time.Duration(300)*time.Second), stan.StartWithLastReceived(), stan.SetManualAckMode())
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	time.Sleep(time.Duration(5) * time.Second)
 	// Unsubscribe
-	_ = sub.Unsubscribe()
+	_ = sub1.Unsubscribe()
+
+
+	time.Sleep(time.Duration(5) * time.Second)
+	// Unsubscribe
+	_ = sub2.Unsubscribe()
 
 	// Close connection
 	_ = sc.Close()
