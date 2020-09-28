@@ -12,7 +12,7 @@ const clientID string = "devtron-nats-n-testing-1001"
 const subject string = "nishant-test-2"
 
 func main() {
-	fmt.Println("subscriber 1 invoked ..")
+	fmt.Println("subscriber 2 invoked ..")
 	nc, err := nats.Connect("nats://127.0.0.1:4222", nats.ReconnectWait(10*time.Second), nats.MaxReconnects(100))
 	if err != nil {
 		fmt.Print(err)
@@ -22,8 +22,8 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	_, _ = sc.QueueSubscribe(subject, "ge", func(msg *stan.Msg) {
-		fmt.Printf("Received a message on sub 1: %s\n", string(msg.Data))
+	_, err = sc.QueueSubscribe(subject, "ge", func(msg *stan.Msg) {
+		fmt.Printf("Received a message on sub 2: %s\n", string(msg.Data))
 		time.Sleep(1 * time.Second)
 		err := msg.Ack()
 		if err != nil {
@@ -34,7 +34,7 @@ func main() {
 		stan.SetManualAckMode(),
 		stan.DurableName("my-durable"))
 
-	// Simple Synchronous Publisher
 	time.Sleep(time.Duration(50) * time.Minute)
+	// Close connection
 	_ = sc.Close()
 }

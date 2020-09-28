@@ -1,87 +1,53 @@
-// Copyright 2012-2019 The NATS Authors
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
 import (
-	"flag"
-	"log"
-	"os"
-
+	"fmt"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/stan.go"
+	"time"
 )
 
-// NOTE: Can test with demo servers.
-// nats-pub -s demo.nats.io <subject> <msg>
-// nats-pub -s demo.nats.io:4443 <subject> <msg> (TLS version)
-
-func usage() {
-	log.Printf("Usage: nats-pub [-s server] [-creds file] <subject> <msg>\n")
-	flag.PrintDefaults()
-}
-
-func showUsageAndExit(exitcode int) {
-	usage()
-	os.Exit(exitcode)
-}
+const clusterID string = "devtron-stan"
+const clientID string = "devtron-nats-n-testing-1002"
+const subject string = "nishant-test-2"
 
 func main() {
-	var urls = flag.String("s", nats.DefaultURL, "The nats server URLs (separated by comma)")
-	var userCreds = flag.String("creds", "", "User Credentials File")
-	var showHelp = flag.Bool("h", false, "Show help message")
-	var reply = flag.String("reply", "", "Sets a specific reply subject")
-
-	log.SetFlags(0)
-	flag.Usage = usage
-	flag.Parse()
-
-	if *showHelp {
-		showUsageAndExit(0)
-	}
-
-	args := flag.Args()
-	if len(args) != 2 {
-		showUsageAndExit(1)
-	}
-
-	// Connect Options.
-	opts := []nats.Option{nats.Name("NATS Sample Publisher")}
-
-	// Use UserCredentials
-	if *userCreds != "" {
-		opts = append(opts, nats.UserCredentials(*userCreds))
-	}
-
-	// Connect to NATS
-	nc, err := nats.Connect(*urls, opts...)
+	fmt.Println("producer invoked")
+	nc, err := nats.Connect("nats://127.0.0.1:4222", nats.ReconnectWait(10*time.Second), nats.MaxReconnects(100))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
 	defer nc.Close()
-
-	subj, msg := args[0], []byte(args[1])
-
-	if reply != nil && *reply != "" {
-		nc.PublishRequest(subj, *reply, msg)
-	} else {
-		nc.Publish(subj, msg)
+	sc, err := stan.Connect(clusterID, clientID, stan.NatsConn(nc))
+	if err != nil {
+		fmt.Println(err)
 	}
-
-	nc.Flush()
-
-	if err := nc.LastError(); err != nil {
-		log.Fatal(err)
-	} else {
-		log.Printf("Published [%s] : '%s'\n", subj, msg)
+	ticker := time.NewTicker(1 * time.Second)
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case t := <-ticker.C:
+				err = sc.Publish(subject, []byte("Hello World "+t.String())) // does not return until an ack has been received from NATS Streaming
+				if err != nil {
+					fmt.Println(err)
+				}
+				fmt.Println("published" + t.String())
+			}
+		}
+	}()
+	// Simple Synchronous Publisher
+	time.Sleep(200 * time.Minute)
+	ticker.Stop()
+	done <- true
+	fmt.Println("Ticker stopped")
+	if err != nil {
+		fmt.Println(err)
 	}
+	time.Sleep(time.Duration(50) * time.Second)
+	// Unsubscribe
+	// Close connection
+	sc.Close()
 }
